@@ -17,7 +17,7 @@ conda activate llama_cpp
 pip install -r requirements.txt
 
 # convert the 7B model to ggml FP16 format
-python convert-starcoder-hf-to-gguf.py models/starcoder/ 1
+python convert-hf-to-gguf.py models/starcoder/
 
 # quantize the model to 4-bits (using q4_0 method)
 ./quantize ./models/starcoder/ggml-model-f16.gguf ./models/starcoder/ggml-model-q4_0.gguf q4_0
