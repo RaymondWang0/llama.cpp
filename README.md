@@ -7,7 +7,9 @@
 make -j
 
 # obtain the StarCoder model weights and place them in ./models
-ls ./models/starcoders
+git clone https://huggingface.co/bigcode/starcoder
+mv starcoder ./models
+ls ./models/starcoder
 
 # install Python environment and dependencies
 conda create -n llama_cpp python=3.10
