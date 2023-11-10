@@ -851,11 +851,11 @@ void gpt_print_usage(int /*argc*/, char ** argv, const gpt_params & params) {
 std::string get_system_info(const gpt_params & params) {
     std::ostringstream os;
 
-    os << "system_info: n_threads = " << params.n_threads;
-    if (params.n_threads_batch != -1) {
-        os << " (n_threads_batch = " << params.n_threads_batch << ")";
-    }
-    os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    // os << "system_info: n_threads = " << params.n_threads;
+    // if (params.n_threads_batch != -1) {
+    //     os << " (n_threads_batch = " << params.n_threads_batch << ")";
+    // }
+    // os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
 
     return os.str();
 }
