@@ -111,7 +111,7 @@ int main(int argc, char ** argv) {
 
 #ifndef LOG_DISABLE_LOGS
     log_set_target(log_filename_generator("main", "log"));
-    LOG_TEE("Log start\n");
+    // // LOG_TEE("Log start\n");
     log_dump_cmdline(argc, argv);
 #endif // LOG_DISABLE_LOGS
 
@@ -140,26 +140,26 @@ int main(int argc, char ** argv) {
     }
 
     if (params.n_ctx != 0 && params.n_ctx < 8) {
-        LOG_TEE("%s: warning: minimum context size is 8, using minimum size.\n", __func__);
+        // LOG_TEE("%s: warning: minimum context size is 8, using minimum size.\n", __func__);
         params.n_ctx = 8;
     }
 
     if (params.rope_freq_base != 0.0) {
-        LOG_TEE("%s: warning: changing RoPE frequency base to %g.\n", __func__, params.rope_freq_base);
+        // LOG_TEE("%s: warning: changing RoPE frequency base to %g.\n", __func__, params.rope_freq_base);
     }
 
     if (params.rope_freq_scale != 0.0) {
-        LOG_TEE("%s: warning: scaling RoPE frequency by %g.\n", __func__, params.rope_freq_scale);
+        // LOG_TEE("%s: warning: scaling RoPE frequency by %g.\n", __func__, params.rope_freq_scale);
     }
 
-    LOG_TEE("%s: build = %d (%s)\n",      __func__, LLAMA_BUILD_NUMBER, LLAMA_COMMIT);
-    LOG_TEE("%s: built with %s for %s\n", __func__, LLAMA_COMPILER, LLAMA_BUILD_TARGET);
+    // LOG_TEE("%s: build = %d (%s)\n",      __func__, LLAMA_BUILD_NUMBER, LLAMA_COMMIT);
+    // LOG_TEE("%s: built with %s for %s\n", __func__, LLAMA_COMPILER, LLAMA_BUILD_TARGET);
 
     if (params.seed == LLAMA_DEFAULT_SEED) {
         params.seed = time(NULL);
     }
 
-    LOG_TEE("%s: seed  = %u\n", __func__, params.seed);
+    // LOG_TEE("%s: seed  = %u\n", __func__, params.seed);
 
     std::mt19937 rng(params.seed);
     if (params.random_prompt) {
@@ -184,7 +184,7 @@ int main(int argc, char ** argv) {
     }
 
     if (model == NULL) {
-        LOG_TEE("%s: error: unable to load model\n", __func__);
+        // LOG_TEE("%s: error: unable to load model\n", __func__);
         return 1;
     }
 
@@ -193,21 +193,21 @@ int main(int argc, char ** argv) {
     LOG("n_ctx: %d\n", n_ctx);
 
     if (n_ctx > n_ctx_train) {
-        LOG_TEE("%s: warning: model was trained on only %d context tokens (%d specified)\n",
-                __func__, n_ctx_train, n_ctx);
+        // LOG_TEE("%s: warning: model was trained on only %d context tokens (%d specified)\n",
+                // __func__, n_ctx_train, n_ctx);
     }
 
     // print system information
     {
-        LOG_TEE("\n");
-        LOG_TEE("%s\n", get_system_info(params).c_str());
+        // LOG_TEE("\n");
+        // LOG_TEE("%s\n", get_system_info(params).c_str());
     }
 
     std::string path_session = params.path_prompt_cache;
     std::vector<llama_token> session_tokens;
 
     if (!path_session.empty()) {
-        LOG_TEE("%s: attempting to load saved session from '%s'\n", __func__, path_session.c_str());
+        // LOG_TEE("%s: attempting to load saved session from '%s'\n", __func__, path_session.c_str());
 
         // fopen to check for existing session
         FILE * fp = std::fopen(path_session.c_str(), "rb");
@@ -217,15 +217,15 @@ int main(int argc, char ** argv) {
             session_tokens.resize(n_ctx);
             size_t n_token_count_out = 0;
             if (!llama_load_session_file(ctx, path_session.c_str(), session_tokens.data(), session_tokens.capacity(), &n_token_count_out)) {
-                LOG_TEE("%s: error: failed to load session file '%s'\n", __func__, path_session.c_str());
+                // LOG_TEE("%s: error: failed to load session file '%s'\n", __func__, path_session.c_str());
                 return 1;
             }
             session_tokens.resize(n_token_count_out);
             llama_set_rng_seed(ctx, params.seed);
 
-            LOG_TEE("%s: loaded a session with prompt size of %d tokens\n", __func__, (int) session_tokens.size());
+            // LOG_TEE("%s: loaded a session with prompt size of %d tokens\n", __func__, (int) session_tokens.size());
         } else {
-            LOG_TEE("%s: session file does not exist, will create\n", __func__);
+            // LOG_TEE("%s: session file does not exist, will create\n", __func__);
         }
     }
 
@@ -271,7 +271,7 @@ int main(int argc, char ** argv) {
     }
 
     if ((int) embd_inp.size() > n_ctx - 4) {
-        LOG_TEE("%s: error: prompt is too long (%d tokens, max %d)\n", __func__, (int) embd_inp.size(), n_ctx - 4);
+        // LOG_TEE("%s: error: prompt is too long (%d tokens, max %d)\n", __func__, (int) embd_inp.size(), n_ctx - 4);
         return 1;
     }
 
@@ -285,15 +285,15 @@ int main(int argc, char ** argv) {
             n_matching_session_tokens++;
         }
         if (params.prompt.empty() && n_matching_session_tokens == embd_inp.size()) {
-            LOG_TEE("%s: using full prompt from session file\n", __func__);
+            // LOG_TEE("%s: using full prompt from session file\n", __func__);
         } else if (n_matching_session_tokens >= embd_inp.size()) {
-            LOG_TEE("%s: session file has exact match for prompt!\n", __func__);
+            // LOG_TEE("%s: session file has exact match for prompt!\n", __func__);
         } else if (n_matching_session_tokens < (embd_inp.size() / 2)) {
-            LOG_TEE("%s: warning: session file has low similarity to prompt (%zu / %zu tokens); will mostly be reevaluated\n",
-                __func__, n_matching_session_tokens, embd_inp.size());
+            // LOG_TEE("%s: warning: session file has low similarity to prompt (%zu / %zu tokens); will mostly be reevaluated\n",
+                // __func__, n_matching_session_tokens, embd_inp.size());
         } else {
-            LOG_TEE("%s: session file matches %zu / %zu tokens of prompt\n",
-                __func__, n_matching_session_tokens, embd_inp.size());
+            // LOG_TEE("%s: session file matches %zu / %zu tokens of prompt\n",
+                // __func__, n_matching_session_tokens, embd_inp.size());
         }
 
         // remove any "future" tokens that we might have inherited from the previous session
@@ -336,30 +336,30 @@ int main(int argc, char ** argv) {
     }
 
     if (params.verbose_prompt) {
-        LOG_TEE("\n");
-        LOG_TEE("%s: prompt: '%s'\n", __func__, params.prompt.c_str());
-        LOG_TEE("%s: number of tokens in prompt = %zu\n", __func__, embd_inp.size());
+        // LOG_TEE("\n");
+        // LOG_TEE("%s: prompt: '%s'\n", __func__, params.prompt.c_str());
+        // LOG_TEE("%s: number of tokens in prompt = %zu\n", __func__, embd_inp.size());
         for (int i = 0; i < (int) embd_inp.size(); i++) {
-            LOG_TEE("%6d -> '%s'\n", embd_inp[i], llama_token_to_piece(ctx, embd_inp[i]).c_str());
+            // LOG_TEE("%6d -> '%s'\n", embd_inp[i], llama_token_to_piece(ctx, embd_inp[i]).c_str());
         }
 
         if (ctx_guidance) {
-            LOG_TEE("\n");
-            LOG_TEE("%s: negative prompt: '%s'\n", __func__, sparams.cfg_negative_prompt.c_str());
-            LOG_TEE("%s: number of tokens in negative prompt = %zu\n", __func__, guidance_inp.size());
+            // LOG_TEE("\n");
+            // LOG_TEE("%s: negative prompt: '%s'\n", __func__, sparams.cfg_negative_prompt.c_str());
+            // LOG_TEE("%s: number of tokens in negative prompt = %zu\n", __func__, guidance_inp.size());
             for (int i = 0; i < (int) guidance_inp.size(); i++) {
-                LOG_TEE("%6d -> '%s'\n", guidance_inp[i], llama_token_to_piece(ctx, guidance_inp[i]).c_str());
+                // LOG_TEE("%6d -> '%s'\n", guidance_inp[i], llama_token_to_piece(ctx, guidance_inp[i]).c_str());
             }
         }
 
         if (params.n_keep > 0) {
-        LOG_TEE("%s: static prompt based on n_keep: '", __func__);
+        // LOG_TEE("%s: static prompt based on n_keep: '", __func__);
             for (int i = 0; i < params.n_keep; i++) {
-                LOG_TEE("%s", llama_token_to_piece(ctx, embd_inp[i]).c_str());
+                // LOG_TEE("%s", llama_token_to_piece(ctx, embd_inp[i]).c_str());
             }
-            LOG_TEE("'\n");
+            // LOG_TEE("'\n");
         }
-        LOG_TEE("\n");
+        // LOG_TEE("\n");
     }
 
     if (params.interactive) {
@@ -376,47 +376,47 @@ int main(int argc, char ** argv) {
         SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(console_ctrl_handler), true);
 #endif
 
-        LOG_TEE("%s: interactive mode on.\n", __func__);
+        // LOG_TEE("%s: interactive mode on.\n", __func__);
 
         if (!params.antiprompt.empty()) {
             for (const auto & antiprompt : params.antiprompt) {
-                LOG_TEE("Reverse prompt: '%s'\n", antiprompt.c_str());
+                // LOG_TEE("Reverse prompt: '%s'\n", antiprompt.c_str());
                 if (params.verbose_prompt) {
                     auto tmp = ::llama_tokenize(ctx, antiprompt, false, true);
                     for (int i = 0; i < (int) tmp.size(); i++) {
-                        LOG_TEE("%6d -> '%s'\n", tmp[i], llama_token_to_piece(ctx, tmp[i]).c_str());
+                        // LOG_TEE("%6d -> '%s'\n", tmp[i], llama_token_to_piece(ctx, tmp[i]).c_str());
                     }
                 }
             }
         }
 
         if (params.input_prefix_bos) {
-            LOG_TEE("Input prefix with BOS\n");
+            // LOG_TEE("Input prefix with BOS\n");
         }
 
         if (!params.input_prefix.empty()) {
-            LOG_TEE("Input prefix: '%s'\n", params.input_prefix.c_str());
+            // LOG_TEE("Input prefix: '%s'\n", params.input_prefix.c_str());
             if (params.verbose_prompt) {
                 auto tmp = ::llama_tokenize(ctx, params.input_prefix, true, true);
                 for (int i = 0; i < (int) tmp.size(); i++) {
-                    LOG_TEE("%6d -> '%s'\n", tmp[i], llama_token_to_piece(ctx, tmp[i]).c_str());
+                    // LOG_TEE("%6d -> '%s'\n", tmp[i], llama_token_to_piece(ctx, tmp[i]).c_str());
                 }
             }
         }
 
         if (!params.input_suffix.empty()) {
-            LOG_TEE("Input suffix: '%s'\n", params.input_suffix.c_str());
+            // LOG_TEE("Input suffix: '%s'\n", params.input_suffix.c_str());
             if (params.verbose_prompt) {
                 auto tmp = ::llama_tokenize(ctx, params.input_suffix, false, true);
                 for (int i = 0; i < (int) tmp.size(); i++) {
-                    LOG_TEE("%6d -> '%s'\n", tmp[i], llama_token_to_piece(ctx, tmp[i]).c_str());
+                    // LOG_TEE("%6d -> '%s'\n", tmp[i], llama_token_to_piece(ctx, tmp[i]).c_str());
                 }
             }
         }
     }
-    LOG_TEE("sampling: \n%s\n", llama_sampling_print(sparams).c_str());
-    LOG_TEE("generate: n_ctx = %d, n_batch = %d, n_predict = %d, n_keep = %d\n", n_ctx, params.n_batch, params.n_predict, params.n_keep);
-    LOG_TEE("\n\n");
+    // // LOG_TEE("sampling: \n%s\n", llama_sampling_print(sparams).c_str());
+    // // LOG_TEE("generate: n_ctx = %d, n_batch = %d, n_predict = %d, n_keep = %d\n", n_ctx, params.n_batch, params.n_predict, params.n_keep);
+    // // LOG_TEE("\n\n");
 
     if (params.interactive) {
         const char *control_message;
@@ -428,11 +428,11 @@ int main(int argc, char ** argv) {
                               " - To return control without starting a new line, end your input with '/'.\n"
                               " - If you want to submit another line, end your input with '\\'.\n";
         }
-        LOG_TEE("== Running in interactive mode. ==\n");
+        // LOG_TEE("== Running in interactive mode. ==\n");
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__)) || defined (_WIN32)
-        LOG_TEE(       " - Press Ctrl+C to interject at any time.\n");
+        // LOG_TEE(       " - Press Ctrl+C to interject at any time.\n");
 #endif
-        LOG_TEE(       "%s\n", control_message);
+        // LOG_TEE(       "%s\n", control_message);
 
         is_interacting = params.interactive_first;
     }
@@ -483,7 +483,7 @@ int main(int argc, char ** argv) {
             // - take half of the last (n_ctx - n_keep) tokens and recompute the logits in batches
             if (n_past + (int) embd.size() + std::max<int>(0, guidance_offset) > n_ctx) {
                 if (params.n_predict == -2) {
-                    LOG_TEE("\n\n%s: context full and n_predict == -%d => stopping\n", __func__, params.n_predict);
+                    // LOG_TEE("\n\n%s: context full and n_predict == -%d => stopping\n", __func__, params.n_predict);
                     break;
                 }
 
@@ -564,7 +564,7 @@ int main(int argc, char ** argv) {
                 for (int i = 0; i < input_size; i += params.n_batch) {
                     int n_eval = std::min(input_size - i, params.n_batch);
                     if (llama_decode(ctx_guidance, llama_batch_get_one(input_buf + i, n_eval, n_past_guidance, 0))) {
-                        LOG_TEE("%s : failed to eval\n", __func__);
+                        // LOG_TEE("%s : failed to eval\n", __func__);
                         return 1;
                     }
 
@@ -581,7 +581,7 @@ int main(int argc, char ** argv) {
                 LOG("eval: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd).c_str());
 
                 if (llama_decode(ctx, llama_batch_get_one(&embd[i], n_eval, n_past, 0))) {
-                    LOG_TEE("%s : failed to eval\n", __func__);
+                    // LOG_TEE("%s : failed to eval\n", __func__);
                     return 1;
                 }
 
@@ -804,7 +804,7 @@ int main(int argc, char ** argv) {
 
         // end of text token
         if (!embd.empty() && embd.back() == llama_token_eos(model) && !(params.instruct || params.interactive)) {
-            LOG_TEE(" [end of text]\n");
+            // LOG_TEE(" [end of text]\n");
             break;
         }
 
@@ -817,7 +817,7 @@ int main(int argc, char ** argv) {
     }
 
     if (!path_session.empty() && params.prompt_cache_all && !params.prompt_cache_ro) {
-        LOG_TEE("\n%s: saving final output to session file '%s'\n", __func__, path_session.c_str());
+        // LOG_TEE("\n%s: saving final output to session file '%s'\n", __func__, path_session.c_str());
         llama_save_session_file(ctx, path_session.c_str(), session_tokens.data(), session_tokens.size());
     }
 
@@ -832,7 +832,7 @@ int main(int argc, char ** argv) {
     llama_backend_free();
 
 #ifndef LOG_DISABLE_LOGS
-    LOG_TEE("Log end\n");
+    // // LOG_TEE("Log end\n");
 #endif // LOG_DISABLE_LOGS
 
     return 0;
