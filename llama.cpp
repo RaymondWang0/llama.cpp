@@ -329,6 +329,7 @@ enum llm_tensor {
     LLM_TENSOR_ATTN_NORM_2,
     LLM_TENSOR_ATTN_ROT_EMBD,
     LLM_TENSOR_FFN_GATE,
+    LLM_TENSOR_FFN_SCALE,
     LLM_TENSOR_FFN_DOWN,
     LLM_TENSOR_FFN_UP,
     LLM_TENSOR_FFN_NORM,
@@ -459,6 +460,7 @@ static std::map<llm_arch, std::map<llm_tensor, std::string>> LLM_TENSOR_NAMES = 
             { LLM_TENSOR_FFN_NORM,        "blk.%d.ffn_norm" },
             { LLM_TENSOR_FFN_UP,          "blk.%d.ffn_up" },
             { LLM_TENSOR_FFN_DOWN,        "blk.%d.ffn_down" },
+            { LLM_TENSOR_FFN_SCALE,       "blk.%d.ffn_scale" },
         },
     },
     {
@@ -1173,6 +1175,7 @@ struct llama_layer {
     struct ggml_tensor * ffn_gate; // w1
     struct ggml_tensor * ffn_down; // w2
     struct ggml_tensor * ffn_up;   // w3
+    struct ggml_tensor * ffn_scale; // ff scale
 
     // ff bias
     struct ggml_tensor * ffn_down_b; // b2
@@ -2854,6 +2857,8 @@ static void llm_load_tensors(
                         layer.ffn_down   = ml.create_tensor(ctx, tn(LLM_TENSOR_FFN_DOWN, "weight", i), {n_ff, n_embd}, backend_split);
                         layer.ffn_down_b = ml.create_tensor(ctx, tn(LLM_TENSOR_FFN_DOWN, "bias", i),   {n_embd},       backend);
 
+                        layer.ffn_scale  = ml.create_tensor(ctx, tn(LLM_TENSOR_FFN_SCALE, "scales", i), {n_ff}, backend);
+
                         layer.ffn_up   = ml.create_tensor(ctx, tn(LLM_TENSOR_FFN_UP,   "weight", i), {n_embd, n_ff}, backend_split);
                         layer.ffn_up_b = ml.create_tensor(ctx, tn(LLM_TENSOR_FFN_UP,   "bias", i),           {n_ff}, backend);
 
@@ -2864,7 +2869,8 @@ static void llm_load_tensors(
                                 ggml_nbytes(layer.wo)        + ggml_nbytes(layer.bo)          +
                                 ggml_nbytes(layer.ffn_norm)  + ggml_nbytes(layer.ffn_norm_b)  +
                                 ggml_nbytes(layer.ffn_down)  + ggml_nbytes(layer.ffn_down_b)  +
-                                ggml_nbytes(layer.ffn_up)    + ggml_nbytes(layer.ffn_up_b);
+                                ggml_nbytes(layer.ffn_up)    + ggml_nbytes(layer.ffn_up_b)    +
+                                ggml_nbytes(layer.ffn_scale);
                         }
                     }
                 } break;
@@ -3344,6 +3350,109 @@ static struct ggml_tensor * llm_build_norm(
 
     if (mb) {
         cur = ggml_add(ctx, cur, mb);
+    }
+
+    return cur;
+}
+
+static struct ggml_tensor * llm_build_ffn_awq(
+        struct ggml_context * ctx,
+         struct ggml_tensor * cur,
+         struct ggml_tensor * up,
+         struct ggml_tensor * up_b,
+         struct ggml_tensor * gate,
+         struct ggml_tensor * gate_b,
+         struct ggml_tensor * act_scales,
+         struct ggml_tensor * down,
+         struct ggml_tensor * down_b,
+            llm_ffn_op_type   type_op,
+          llm_ffn_gate_type   type_gate,
+         const llm_build_cb & cb,
+                        int   il) {
+    struct ggml_tensor * tmp = ggml_mul_mat(ctx, up, cur);
+    cb(tmp, "ffn_up", il);
+
+    if (up_b) {
+        // printf("tmp->ne[0] = %d, up_b->ne[0] = %d\n", tmp->ne[0], up_b->ne[0]);
+        // printf("tmp->ne[1] = %d, up_b->ne[1] = %d\n", tmp->ne[1], up_b->ne[1]);
+        // printf("tmp->ne[2] = %d, up_b->ne[2] = %d\n", tmp->ne[2], up_b->ne[2]);
+        // printf("tmp->ne[3] = %d, up_b->ne[3] = %d\n", tmp->ne[3], up_b->ne[3]);
+        tmp = ggml_add(ctx, tmp, up_b);
+        cb(tmp, "ffn_up_b", il);
+    }
+
+    if (gate) {
+        switch (type_gate) {
+            case LLM_FFN_SEQ:
+                {
+                    cur = ggml_mul_mat(ctx, gate, tmp);
+                    cb(cur, "ffn_gate", il);
+                } break;
+            case LLM_FFN_PAR:
+                {
+                    cur = ggml_mul_mat(ctx, gate, cur);
+                    cb(cur, "ffn_gate", il);
+                } break;
+        }
+
+        if (gate_b) {
+            cur = ggml_add(ctx, cur, gate_b);
+            cb(cur, "ffn_gate_b", il);
+        }
+    } else {
+        cur = tmp;
+    }
+
+    // if (act_scales) {
+    //     // cur = ggml_div(ctx, cur, act_scales);
+    //     cur = ggml_mul(ctx, cur, act_scales);
+    //     cb(cur, "ffn_scale", il);
+    // }
+
+    switch (type_op) {
+        case LLM_FFN_SILU:
+            {
+                cur = ggml_silu(ctx, cur);
+                cb(cur, "ffn_silu", il);
+            } break;
+        case LLM_FFN_GELU:
+            {
+                cur = ggml_gelu(ctx, cur);
+                cb(cur, "ffn_gelu", il);
+            } break;
+        case LLM_FFN_RELU:
+            {
+                cur = ggml_relu(ctx, cur);
+                cb(cur, "ffn_relu", il);
+            } break;
+        case LLM_FFN_RELU_SQR:
+            {
+                cur = ggml_relu(ctx, cur);
+                cb(cur, "ffn_relu", il);
+
+                cur = ggml_sqr(ctx, cur);
+                cb(cur, "ffn_sqr(relu)", il);
+            } break;
+    }
+
+    if (type_gate == LLM_FFN_PAR) {
+        cur = ggml_mul(ctx, cur, tmp);
+        cb(cur, "ffn_gate_par", il);
+    }
+
+    if (act_scales) {
+        // cur = ggml_div(ctx, cur, act_scales);
+        cur = ggml_mul(ctx, cur, act_scales);
+        cb(cur, "ffn_scale", il);
+    }
+
+    cur = ggml_mul_mat(ctx, down, cur);
+    if (down_b) {
+        cb(cur, "ffn_down", il);
+    }
+
+    if (down_b) {
+        cur = ggml_add(ctx, cur, down_b);
     }
 
     return cur;
@@ -4037,9 +4146,11 @@ struct llm_build_context {
                         LLM_NORM, cb, il);
                 cb(cur, "ffn_norm", il);
 
-                cur = llm_build_ffn(ctx0, cur,
+                // cur = llm_build_ffn(ctx0, cur,
+                cur = llm_build_ffn_awq(ctx0, cur,
                         model.layers[il].ffn_up,   model.layers[il].ffn_up_b,
                         NULL,                      NULL,
+                        model.layers[il].ffn_scale,
                         model.layers[il].ffn_down, model.layers[il].ffn_down_b,
                         LLM_FFN_GELU, LLM_FFN_SEQ, cb, il);
                 cb(cur, "ffn_out", il);
@@ -4710,6 +4821,7 @@ static const std::unordered_map<const char *, llm_offload_func_e> k_offload_map 
     { "ffn_gate",                   OFFLOAD_FUNC     },
     { "ffn_gate_b",                 OFFLOAD_FUNC     },
     { "ffn_gate_par",               OFFLOAD_FUNC     },
+    { "ffn_scale",                  OFFLOAD_FUNC     },
     { "ffn_down",                   OFFLOAD_FUNC     },
     { "ffn_down_b",                 OFFLOAD_FUNC     },
     { "ffn_out",                    OFFLOAD_FUNC     },
