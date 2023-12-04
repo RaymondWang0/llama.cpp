@@ -98,10 +98,16 @@ class Model:
             data = data_torch.squeeze().numpy()
 
             # map tensor names
-            new_name = tensor_map.get_name(name, try_suffixes=(".weight", ".bias"))
+            new_name = tensor_map.get_name(name, try_suffixes=(".weight", ".bias", ".scales"))
+            if new_name.endswith(".scales"):
+                print(f"Reciprocal of {new_name}")
+                data = 1.0 / data
+
             if new_name is None:
                 print(f"Can not map tensor {name!r}")
-                sys.exit()
+                print(f"data.shape = {data.shape}")
+                continue
+                # sys.exit()
 
             n_dims = len(data.shape)
             data_dtype = data.dtype
@@ -118,7 +124,7 @@ class Model:
             if self.ftype == 1 and data_dtype == np.float32 and name.endswith(".weight") and n_dims == 2:
                 data = data.astype(np.float16)
 
-            print(f"{new_name}, n_dims = {n_dims}, {old_dtype} --> {data.dtype}")
+            print(f"{new_name}, n_dims = {n_dims}, data.shape = {data.shape}, {old_dtype} --> {data.dtype}")
 
             self.gguf_writer.add_tensor(new_name, data)
 
