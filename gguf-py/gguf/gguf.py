@@ -112,6 +112,7 @@ class MODEL_TENSOR(IntEnum):
     ATTN_NORM_2     : int = auto()
     ATTN_ROT_EMBD   : int = auto()
     FFN_GATE        : int = auto()
+    FFN_SCALE       : int = auto()
     FFN_DOWN        : int = auto()
     FFN_UP          : int = auto()
     FFN_NORM        : int = auto()
@@ -154,6 +155,7 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.ATTN_K_NORM:     "blk.{bid}.attn_k_norm",
     MODEL_TENSOR.FFN_NORM:        "blk.{bid}.ffn_norm",
     MODEL_TENSOR.FFN_GATE:        "blk.{bid}.ffn_gate",
+    MODEL_TENSOR.FFN_SCALE:       "blk.{bid}.ffn_scale",
     MODEL_TENSOR.FFN_DOWN:        "blk.{bid}.ffn_down",
     MODEL_TENSOR.FFN_UP:          "blk.{bid}.ffn_up",
 }
@@ -224,6 +226,7 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.FFN_NORM,
         MODEL_TENSOR.FFN_DOWN,
         MODEL_TENSOR.FFN_UP,
+        MODEL_TENSOR.FFN_SCALE,
     ],
     MODEL_ARCH.BERT: [
         MODEL_TENSOR.TOKEN_EMBD,
@@ -488,6 +491,11 @@ class TensorNameMap:
             "layers.{bid}.feed_forward.w1",     # llama-pth
         ),
 
+        # Scaling factor for Gelu (only used in specific models, e.g., StarCoder)
+        MODEL_TENSOR.FFN_SCALE: (
+            "transformer.h.{bid}.mlp.act.scales", # llama-hf refact
+        ),
+
         # Feed-forward down
         MODEL_TENSOR.FFN_DOWN: (
             "gpt_neox.layers.{bid}.mlp.dense_4h_to_h",               # gptneox
@@ -539,11 +547,15 @@ class TensorNameMap:
     def get_type_and_name(self, key: str, try_suffixes: Sequence[str] = ()) -> tuple[MODEL_TENSOR, str] | None:
         result = self.mapping.get(key)
         if result is not None:
+            # print("Found key: "+key)
+            if key.endswith(".scales"):
+                return (result[0], result[1] + ".scales")
             return result
         for suffix in try_suffixes:
             if key.endswith(suffix):
                 result = self.mapping.get(key[:-len(suffix)])
                 if result is not None:
+                    # print("suffix - Found key: "+key)
                     return (result[0], result[1] + suffix)
         return None
 
